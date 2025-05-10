@@ -1,47 +1,148 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="de">
 <head>
+  <meta charset="UTF-8">
+  <title>3D Maschine (korrigiert)</title>
+  <style>
+    body { margin: 0; overflow: hidden; }
+    #ui {
+      position: absolute; top: 10px; left: 10px;
+      background: rgba(255,255,255,0.9); padding: 10px;
+      font-family: sans-serif; border-radius: 8px;
+    }
+    button { margin: 5px; }
+  </style>
 </head>
 <body>
-    <script>
-        // Function to check if cookies are enabled in the user's browser.
-        const checkCookiesEnable = () => {
-            // Check if cookies are enabled using the navigator.cookieEnabled property.
-            let isCookieEnabled = (window.navigator.cookieEnabled) ? true : false;
-            
-            // If the browser doesn't support the navigator.cookieEnabled property or it is explicitly set to false,
-            // try to set a test cookie to check if cookies are enabled.
-            if (typeof window.navigator.cookieEnabled == "undefined" && !isCookieEnabled) {
-                // Attempt to set a test cookie named "testcookie".
-                document.cookie = "testcookie";
-                // Check if the test cookie can be retrieved from the document.cookie property,
-                // indicating that cookies are enabled.
-                isCookieEnabled = (document.cookie.indexOf("testcookie") != -1) ? true : false;
-            }
+  <div id="ui">
+    <button onclick="openDoor()">Tür öffnen</button>
+    <button onclick="closeDoor()">Tür schließen</button>
+  </div>
 
-            return isCookieEnabled; // Return the result indicating whether cookies are enabled.
-        }
+  <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
 
-        // Immediately Invoked Function Expression (IIFE) to handle the 'message' event.
-        (function () {
-            window.addEventListener('message', event => {
-                try {
-                    let data = JSON.parse(event.data); // Parse the received message data as JSON.
-                    if (data['test'] !== 'cookie') // Check if the received message is for testing cookies.
-                        return; // If not, do nothing and return.
+  <script>
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf0f0f0);
 
-                    let result = checkCookiesEnable(); // Call the function to check if cookies are enabled.
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 100);
+    camera.position.set(2.5, 2, 3);
 
-                    // Post the result back to the parent window with a message containing the 'result' property.
-                    parent.postMessage(JSON.stringify({
-                        'result': result
-                    }), event.origin);
-                }
-                catch (e) {
-                    console.error(e); // Log any errors that might occur during the process.
-                }
-            });
-        })();
-    </script>
+    const renderer = new THREE.WebGLRenderer({antialias: true});
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1, 0);
+    controls.update();
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const light = new THREE.DirectionalLight(0xffffff, 0.8);
+    light.position.set(3, 4, 2);
+    scene.add(light);
+
+    // Maschinenrahmen
+    const frame = new THREE.Mesh(
+      new THREE.BoxGeometry(2, 2, 2),
+      new THREE.MeshLambertMaterial({ color: 0xffffff })
+    );
+    frame.position.y = 1;
+    scene.add(frame);
+
+    // Transparente Tür mit Pivot-Scharnier
+    const doorMaterial = new THREE.MeshLambertMaterial({
+      color: 0x99ccff,
+      transparent: true,
+      opacity: 0.3,
+      side: THREE.DoubleSide
+    });
+    const door = new THREE.Mesh(
+      new THREE.BoxGeometry(0.01, 1.5, 1.0),
+      doorMaterial
+    );
+
+    const doorPivot = new THREE.Object3D();
+    doorPivot.position.set(-1, 1, 0); // Scharnier links
+    door.position.set(0, 0, 0.5);     // Tür zeigt zur Front (Z)
+    doorPivot.add(door);
+    scene.add(doorPivot);
+
+    function openDoor() {
+      gsap.to(doorPivot.rotation, { y: -Math.PI / 2, duration: 1 });
+    }
+    function closeDoor() {
+      gsap.to(doorPivot.rotation, { y: 0, duration: 1 });
+    }
+
+    // Roboterarm
+    const armBase = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.05, 0.05, 0.1),
+      new THREE.MeshLambertMaterial({ color: 0x333333 })
+    );
+    armBase.position.set(0, 1, 0);
+    scene.add(armBase);
+
+    const arm1 = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.5, 0.1),
+      new THREE.MeshLambertMaterial({ color: 0x555555 })
+    );
+    arm1.position.y = 0.25;
+
+    const arm1Pivot = new THREE.Object3D();
+    arm1Pivot.position.set(0, 1.05, 0);
+    arm1Pivot.add(arm1);
+    scene.add(arm1Pivot);
+
+    const arm2 = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.3, 0.1),
+      new THREE.MeshLambertMaterial({ color: 0x777777 })
+    );
+    arm2.position.y = 0.15;
+
+    const arm2Pivot = new THREE.Object3D();
+    arm2Pivot.position.set(0, 0.5, 0);
+    arm2Pivot.add(arm2);
+    arm1.add(arm2Pivot);
+
+    // Display mit Canvas-Textur
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#0f0"; ctx.font = "20px sans-serif";
+    ctx.fillText("Status: BETRIEB", 20, 50);
+    const texture = new THREE.CanvasTexture(canvas);
+
+    const display = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.6, 0.3),
+      new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide })
+    );
+    display.position.set(1.1, 1.2, 0);
+    display.rotation.y = -Math.PI / 2;
+    scene.add(display);
+
+    // Animation Arm
+    let t = 0;
+    function animate() {
+      requestAnimationFrame(animate);
+      t += 0.01;
+      arm1Pivot.rotation.z = Math.sin(t) * 0.5;
+      arm2Pivot.rotation.z = Math.cos(t * 2) * 0.8;
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
 </body>
 </html>
+
