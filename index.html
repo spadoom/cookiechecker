@@ -5,61 +5,33 @@
   <title>CPQ 3D Renderer</title>
   <style>
     body { margin: 0; overflow: hidden; }
-    #ui {
-      position: absolute; top: 10px; left: 10px;
-      background: rgba(255,255,255,0.9); padding: 10px;
-      font-family: sans-serif; border-radius: 8px;
-    }
-    button { margin: 5px; }
   </style>
 </head>
 <body>
 
   <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
 
   <script>
-    // ——— Read `data` param, parse JSON, decide whether to draw the arm ———
+    // ——— 1) Parse the `data` URL param ———
     const treeNodes = (() => {
       const params = new URLSearchParams(window.location.search);
-      const dataParam = params.get('data');
-      if (!dataParam) {
-        console.warn('No "data" URL parameter found; defaulting to empty tree.');
-        return [];
-      }
-      try {
-        return JSON.parse(dataParam);
-      } catch (e) {
-        console.error('Failed to parse "data" URL param:', e, dataParam);
-        return [];
-      }
+      const raw = params.get('data');
+      try { return raw ? JSON.parse(raw) : []; }
+      catch (e) { console.error('Invalid JSON in data param', e); return []; }
     })();
 
-    function hasSubassembly(nodes) {
-      for (const node of nodes) {
-        console.log('node = ' + node.id);
-        if (typeof node.id === 'string' && node.id.includes('Subassembly')) {
-          return true;
-        }
-        if (node.children && hasSubassembly(node.children)) {
-          return true;
-        }
-      }
-      return false;
-    }
+    // ——— 2) Pull out your top‐level ID or label ———
+    const rootId = (treeNodes[0] && treeNodes[0].id) || '';
+    console.log('Root ID:', rootId);
 
-    const drawArm = hasSubassembly(treeNodes);
-    console.log('Should draw robot arm?', drawArm);
-
-    // ——— Three.js setup ———
-    const scene = new THREE.Scene();
+    // ——— 3) Three.js boilerplate ———
+    const scene    = new THREE.Scene();
     scene.background = new THREE.Color(0xf0f0f0);
-
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 100);
+    const camera   = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 100);
     camera.position.set(2.5, 2, 3);
 
-    const renderer = new THREE.WebGLRenderer({antialias: true});
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
@@ -72,35 +44,35 @@
     light.position.set(3, 4, 2);
     scene.add(light);
 
-    // Maschinenrahmen
-    const frame = new THREE.Mesh(
-      new THREE.BoxGeometry(2, 2, 2),
-      new THREE.MeshLambertMaterial({ color: 0xffffff })
-    );
-    frame.position.y = 1;
-    scene.add(frame);
+    // always draw the common frame & door
+    function drawFrameAndDoor() {
+      const frame = new THREE.Mesh(
+        new THREE.BoxGeometry(2, 2, 2),
+        new THREE.MeshLambertMaterial({ color: 0xffffff })
+      );
+      frame.position.y = 1;
+      scene.add(frame);
 
-    // Transparente Tür mit Pivot-Scharnier
-    const doorMaterial = new THREE.MeshLambertMaterial({
-      color: 0x99ccff,
-      transparent: true,
-      opacity: 0.3,
-      side: THREE.DoubleSide
-    });
-    const door = new THREE.Mesh(
-      new THREE.BoxGeometry(0.01, 1.5, 1.0),
-      doorMaterial
-    );
-    const doorPivot = new THREE.Object3D();
-    doorPivot.position.set(-1, 1, 0);
-    door.position.set(0, 0, 0.5);
-    doorPivot.add(door);
-    scene.add(doorPivot);
+      const doorMat = new THREE.MeshLambertMaterial({
+        color: 0x99ccff, transparent: true, opacity: 0.3, side: THREE.DoubleSide
+      });
+      const door = new THREE.Mesh(
+        new THREE.BoxGeometry(0.01, 1.5, 1.0),
+        doorMat
+      );
+      const doorPivot = new THREE.Object3D();
+      doorPivot.position.set(-1, 1, 0);
+      door.position.set(0, 0, 0.5);
+      doorPivot.add(door);
+      scene.add(doorPivot);
+    }
 
-    // ——— Roboterarm (only if Subassembly present) ———
-    let arm1Pivot, arm2Pivot;
-    if (drawArm) {
-      // Arm base
+    // case DS-5400
+    function renderDS5400() {
+      let arm1Pivot, arm2Pivot;
+      let t = 0;
+
+      // robot arm base
       const armBase = new THREE.Mesh(
         new THREE.CylinderGeometry(0.05, 0.05, 0.1),
         new THREE.MeshLambertMaterial({ color: 0x333333 })
@@ -108,7 +80,7 @@
       armBase.position.set(0, 1, 0);
       scene.add(armBase);
 
-      // First segment
+      // first segment
       const arm1 = new THREE.Mesh(
         new THREE.BoxGeometry(0.1, 0.5, 0.1),
         new THREE.MeshLambertMaterial({ color: 0x555555 })
@@ -119,7 +91,7 @@
       arm1Pivot.add(arm1);
       scene.add(arm1Pivot);
 
-      // Second segment
+      // second segment
       const arm2 = new THREE.Mesh(
         new THREE.BoxGeometry(0.1, 0.3, 0.1),
         new THREE.MeshLambertMaterial({ color: 0x777777 })
@@ -129,46 +101,86 @@
       arm2Pivot.position.set(0, 0.5, 0);
       arm2Pivot.add(arm2);
       arm1.add(arm2Pivot);
-    }
 
-    // Display mit Canvas-Textur
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 128;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = "#000"; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "#0f0"; ctx.font = "20px sans-serif";
-    ctx.fillText("Status: BETRIEB", 20, 50);
-    const texture = new THREE.CanvasTexture(canvas);
+      // status display
+      const canvas = document.createElement('canvas');
+      canvas.width = 256; canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = "#000"; ctx.fillRect(0,0,256,128);
+      ctx.fillStyle = "#0f0"; ctx.font="20px sans-serif";
+      ctx.fillText("Status: BETRIEB",20,50);
+      const displayTex = new THREE.CanvasTexture(canvas);
+      const display = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.6,0.3),
+        new THREE.MeshBasicMaterial({ map: displayTex, side: THREE.DoubleSide })
+      );
+      display.position.set(1.1,1.2,0);
+      display.rotation.y = -Math.PI/2;
+      scene.add(display);
 
-    const display = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.6, 0.3),
-      new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide })
-    );
-    display.position.set(1.1, 1.2, 0);
-    display.rotation.y = -Math.PI / 2;
-    scene.add(display);
-
-    // ——— Animation (only animate if arm exists) ———
-    let t = 0;
-    function animate() {
-      requestAnimationFrame(animate);
-
-      if (drawArm && arm1Pivot && arm2Pivot) {
+      // return an animate function for the arm
+      return () => {
         t += 0.01;
         arm1Pivot.rotation.z = Math.sin(t) * 0.5;
-        arm2Pivot.rotation.z = Math.cos(t * 2) * 0.8;
-      }
+        arm2Pivot.rotation.z = Math.cos(t*2) * 0.8;
+      };
+    }
 
+    // case BT-8000
+    function renderBT8000() {
+      const cube = new THREE.Mesh(
+        new THREE.BoxGeometry(1.5, 1.5, 1.5),
+        new THREE.MeshLambertMaterial({ color: 0xaaffaa })
+      );
+      cube.position.y = 0.75;
+      scene.add(cube);
+
+      // return a slow-rotate animate function
+      return () => {
+        cube.rotation.y += 0.005;
+      };
+    }
+
+    // default fallback
+    function renderDefault() {
+      const cube = new THREE.Mesh(
+        new THREE.BoxGeometry(1.5, 1.5, 1.5),
+        new THREE.MeshLambertMaterial({ color: 0xff4444 })
+      );
+      cube.position.y = 0.75;
+      scene.add(cube);
+
+      return () => {
+        cube.rotation.y += 0.005;
+      };
+    }
+
+    let animateExtras = () => {};
+
+    if (rootId.includes('DS-5400')) {
+      drawFrameAndDoor();
+      animateExtras = renderDS5400();
+    }
+    else if (rootId.includes('BT-8000')) {
+      animateExtras = renderBT8000();
+    }
+    else {
+      console.warn('No matching case for', rootId);
+      animateExtras = renderDefault();
+    }
+
+    // ——— 5) Render loop ———
+    function animate() {
+      requestAnimationFrame(animate);
+      animateExtras();
       controls.update();
       renderer.render(scene, camera);
     }
-
     animate();
 
-    // Handle resizing
+    // ——— 6) Handle resize ———
     window.addEventListener('resize', () => {
-      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.aspect = window.innerWidth/window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
