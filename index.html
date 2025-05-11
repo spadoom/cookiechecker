@@ -20,6 +20,24 @@
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
 
   <script>
+    // ——— Read and log the `data` URL param ———
+    (function() {
+      const params = new URLSearchParams(window.location.search);
+      const dataParam = params.get('data');
+      if (dataParam) {
+        try {
+          // URLSearchParams auto-decodes percent-encoding
+          const nodes = JSON.parse(dataParam);
+          console.log('Received tree nodes:', nodes);
+        } catch (e) {
+          console.error('Failed to parse "data" URL param:', e, dataParam);
+        }
+      } else {
+        console.log('No "data" URL parameter found.');
+      }
+    })();
+
+    // ——— Your existing Three.js setup ———
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf0f0f0);
 
@@ -58,14 +76,13 @@
       new THREE.BoxGeometry(0.01, 1.5, 1.0),
       doorMaterial
     );
-
     const doorPivot = new THREE.Object3D();
-    doorPivot.position.set(-1, 1, 0); // Scharnier links
-    door.position.set(0, 0, 0.5);     // Tür zeigt zur Front (Z)
+    doorPivot.position.set(-1, 1, 0);
+    door.position.set(0, 0, 0.5);
     doorPivot.add(door);
     scene.add(doorPivot);
 
-     // Roboterarm
+    // Roboterarm
     const armBase = new THREE.Mesh(
       new THREE.CylinderGeometry(0.05, 0.05, 0.1),
       new THREE.MeshLambertMaterial({ color: 0x333333 })
@@ -123,7 +140,6 @@
       controls.update();
       renderer.render(scene, camera);
     }
-
     animate();
 
     window.addEventListener('resize', () => {
@@ -132,6 +148,6 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
   </script>
+
 </body>
 </html>
-
