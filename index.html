@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>3D Maschine (korrigiert)</title>
+  <title>CPQ 3D Renderer</title>
   <style>
     body { margin: 0; overflow: hidden; }
     #ui {
@@ -20,24 +20,38 @@
   <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.2/dist/gsap.min.js"></script>
 
   <script>
-    // ——— Read and log the `data` URL param ———
-    (function() {
+    // ——— Read `data` param, parse JSON, decide whether to draw the arm ———
+    const treeNodes = (() => {
       const params = new URLSearchParams(window.location.search);
       const dataParam = params.get('data');
-      if (dataParam) {
-        try {
-          // URLSearchParams auto-decodes percent-encoding
-          const nodes = JSON.parse(dataParam);
-          console.log('Received tree nodes:', nodes);
-        } catch (e) {
-          console.error('Failed to parse "data" URL param:', e, dataParam);
-        }
-      } else {
-        console.log('No "data" URL parameter found.');
+      if (!dataParam) {
+        console.warn('No "data" URL parameter found; defaulting to empty tree.');
+        return [];
+      }
+      try {
+        return JSON.parse(dataParam);
+      } catch (e) {
+        console.error('Failed to parse "data" URL param:', e, dataParam);
+        return [];
       }
     })();
 
-    // ——— Your existing Three.js setup ———
+    function hasSubassembly(nodes) {
+      for (const node of nodes) {
+        if (typeof node.label === 'string' && node.label.includes('Subassembly')) {
+          return true;
+        }
+        if (node.children && hasSubassembly(node.children)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    const drawArm = hasSubassembly(treeNodes);
+    console.log('Should draw robot arm?', drawArm);
+
+    // ——— Three.js setup ———
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xf0f0f0);
 
@@ -82,35 +96,39 @@
     doorPivot.add(door);
     scene.add(doorPivot);
 
-    // Roboterarm
-    const armBase = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.05, 0.05, 0.1),
-      new THREE.MeshLambertMaterial({ color: 0x333333 })
-    );
-    armBase.position.set(0, 1, 0);
-    scene.add(armBase);
+    // ——— Roboterarm (only if Subassembly present) ———
+    let arm1Pivot, arm2Pivot;
+    if (drawArm) {
+      // Arm base
+      const armBase = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.05, 0.1),
+        new THREE.MeshLambertMaterial({ color: 0x333333 })
+      );
+      armBase.position.set(0, 1, 0);
+      scene.add(armBase);
 
-    const arm1 = new THREE.Mesh(
-      new THREE.BoxGeometry(0.1, 0.5, 0.1),
-      new THREE.MeshLambertMaterial({ color: 0x555555 })
-    );
-    arm1.position.y = 0.25;
+      // First segment
+      const arm1 = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.5, 0.1),
+        new THREE.MeshLambertMaterial({ color: 0x555555 })
+      );
+      arm1.position.y = 0.25;
+      arm1Pivot = new THREE.Object3D();
+      arm1Pivot.position.set(0, 1.05, 0);
+      arm1Pivot.add(arm1);
+      scene.add(arm1Pivot);
 
-    const arm1Pivot = new THREE.Object3D();
-    arm1Pivot.position.set(0, 1.05, 0);
-    arm1Pivot.add(arm1);
-    scene.add(arm1Pivot);
-
-    const arm2 = new THREE.Mesh(
-      new THREE.BoxGeometry(0.1, 0.3, 0.1),
-      new THREE.MeshLambertMaterial({ color: 0x777777 })
-    );
-    arm2.position.y = 0.15;
-
-    const arm2Pivot = new THREE.Object3D();
-    arm2Pivot.position.set(0, 0.5, 0);
-    arm2Pivot.add(arm2);
-    arm1.add(arm2Pivot);
+      // Second segment
+      const arm2 = new THREE.Mesh(
+        new THREE.BoxGeometry(0.1, 0.3, 0.1),
+        new THREE.MeshLambertMaterial({ color: 0x777777 })
+      );
+      arm2.position.y = 0.15;
+      arm2Pivot = new THREE.Object3D();
+      arm2Pivot.position.set(0, 0.5, 0);
+      arm2Pivot.add(arm2);
+      arm1.add(arm2Pivot);
+    }
 
     // Display mit Canvas-Textur
     const canvas = document.createElement('canvas');
@@ -130,18 +148,24 @@
     display.rotation.y = -Math.PI / 2;
     scene.add(display);
 
-    // Animation Arm
+    // ——— Animation (only animate if arm exists) ———
     let t = 0;
     function animate() {
       requestAnimationFrame(animate);
-      t += 0.01;
-      arm1Pivot.rotation.z = Math.sin(t) * 0.5;
-      arm2Pivot.rotation.z = Math.cos(t * 2) * 0.8;
+
+      if (drawArm && arm1Pivot && arm2Pivot) {
+        t += 0.01;
+        arm1Pivot.rotation.z = Math.sin(t) * 0.5;
+        arm2Pivot.rotation.z = Math.cos(t * 2) * 0.8;
+      }
+
       controls.update();
       renderer.render(scene, camera);
     }
+
     animate();
 
+    // Handle resizing
     window.addEventListener('resize', () => {
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
