@@ -38,8 +38,8 @@
 
     function hasSubassembly(nodes) {
       for (const node of nodes) {
-        console.log('node = ' + node.label);
-        if (typeof node.label === 'string' && node.label.includes('Subassembly')) {
+        console.log('node = ' + node.id);
+        if (typeof node.id === 'string' && node.id.includes('Subassembly')) {
           return true;
         }
         if (node.children && hasSubassembly(node.children)) {
@@ -100,7 +100,6 @@
     // ——— Roboterarm (only if Subassembly present) ———
     let arm1Pivot, arm2Pivot;
     if (drawArm) {
-      alert('arm');
       // Arm base
       const armBase = new THREE.Mesh(
         new THREE.CylinderGeometry(0.05, 0.05, 0.1),
