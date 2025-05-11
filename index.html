@@ -14,10 +14,6 @@
   </style>
 </head>
 <body>
-  <div id="ui">
-    <button onclick="openDoor()">Tür öffnen</button>
-    <button onclick="closeDoor()">Tür schließen</button>
-  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.146.0/examples/js/controls/OrbitControls.js"></script>
@@ -69,14 +65,7 @@
     doorPivot.add(door);
     scene.add(doorPivot);
 
-    function openDoor() {
-      gsap.to(doorPivot.rotation, { y: -Math.PI / 2, duration: 1 });
-    }
-    function closeDoor() {
-      gsap.to(doorPivot.rotation, { y: 0, duration: 1 });
-    }
-
-    // Roboterarm
+     // Roboterarm
     const armBase = new THREE.Mesh(
       new THREE.CylinderGeometry(0.05, 0.05, 0.1),
       new THREE.MeshLambertMaterial({ color: 0x333333 })
